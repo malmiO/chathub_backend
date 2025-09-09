@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, send_from_directory
 from pymongo import MongoClient
 from bson import ObjectId
 from datetime import datetime, timedelta, timezone
@@ -28,6 +28,16 @@ settings_collection = db["settings"]
 # Admin JWT Secret Key
 ADMIN_SECRET_KEY = "ADMIN_SH123456"
 ALGORITHM = "HS256"
+
+UPLOAD_FOLDER = 'uploads/admin_profiles'
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
+
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+def allowed_file(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 # Admin authentication decorator
 def admin_required(f):
@@ -808,36 +818,83 @@ def get_dashboard_charts():
 @admin_required
 def upload_profile_pic():
     try:
-        if 'file' not in request.files:
-            return jsonify({"error": "No file uploaded"}), 400
+        # Check if file is present in the request
+        if 'profile_picture' not in request.files:
+            return jsonify({"error": "No file provided"}), 400
         
-        file = request.files['file']
+        file = request.files['profile_picture']
+        
+        # Check if file was selected
         if file.filename == '':
             return jsonify({"error": "No file selected"}), 400
         
-        # Check file type
-        allowed_extensions = {'png', 'jpg', 'jpeg', 'gif'}
-        if not ('.' in file.filename and 
-                file.filename.rsplit('.', 1)[1].lower() in allowed_extensions):
-            return jsonify({"error": "Invalid file type"}), 400
+        # Validate file type
+        if not allowed_file(file.filename):
+            return jsonify({"error": "Invalid file type. Only PNG, JPG, JPEG, and GIF are allowed"}), 400
         
-        # Save file
+        # Validate file size
+        file.seek(0, os.SEEK_END)
+        file_length = file.tell()
+        file.seek(0)
+        
+        if file_length > MAX_FILE_SIZE:
+            return jsonify({"error": "File size exceeds 5MB limit"}), 400
+        
+        # Get admin email from token
+        token = request.headers.get('Authorization').replace('Bearer ', '')
+        decoded_data = jwt.decode(token, ADMIN_SECRET_KEY, algorithms=[ALGORITHM])
+        email = decoded_data["email"]
+        
+        # Generate a secure filename
+        timestamp = int(datetime.now().timestamp())
         filename = secure_filename(file.filename)
-        timestamp = str(int(datetime.now().timestamp()))
-        filename = f"admin_{timestamp}_{filename}"
+        extension = filename.rsplit('.', 1)[1].lower()
+        new_filename = f"admin_{email}_{timestamp}.{extension}"
         
-        # Create uploads directory if it doesn't exist
-        upload_dir = "uploads/admin_profiles"
-        os.makedirs(upload_dir, exist_ok=True)
-        
-        file_path = os.path.join(upload_dir, filename)
+        # Save the file
+        file_path = os.path.join(UPLOAD_FOLDER, new_filename)
         file.save(file_path)
         
+        # Update admin profile in database
+        result = admin_collection.update_one(
+            {"email": email},
+            {"$set": {"profile_pic": new_filename}}
+        )
+        
+        if result.modified_count == 0:
+            # If no document was modified, try to create the field if it doesn't exist
+            admin_collection.update_one(
+                {"email": email},
+                {"$set": {"profile_pic": new_filename}},
+                upsert=True
+            )
+        
+        # Log activity
+        log_admin_activity(email, "Profile picture updated", "Uploaded new profile picture")
+        
         return jsonify({
-            "message": "File uploaded successfully",
-            "filename": filename,
-            "url": f"/uploads/admin_profiles/{filename}"
-        })
+            "message": "Profile picture uploaded successfully",
+            "profile_pic": new_filename,
+            "profile_pic_url": f"/{UPLOAD_FOLDER}/{new_filename}"
+        }), 200
+        
+    except jwt.InvalidTokenError:
+        return jsonify({"error": "Invalid token"}), 401
+    except Exception as e:
+        print(f"Error uploading profile picture: {str(e)}")
+        return jsonify({"error": "Failed to upload profile picture"}), 500
+    
+# Serve profile pictures
+@admin_bp.route("/uploads/admin_profiles/<filename>", methods=["GET"])
+def serve_profile_pic(filename):
+    try:
+        # Security check to prevent directory traversal
+        if '..' in filename or filename.startswith('/'):
+            return jsonify({"error": "Invalid filename"}), 400
+            
+        return send_from_directory(UPLOAD_FOLDER, filename)
+    except FileNotFoundError:
+        return jsonify({"error": "File not found"}), 404
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     
@@ -1309,14 +1366,14 @@ def get_admin_activity_log():
                 "action": activity["action"],
                 "details": activity["details"],
                 "timestamp": activity["timestamp"].isoformat() if isinstance(activity["timestamp"], datetime) else activity["timestamp"],
-                "ip_address": activity.get("ip_address", "Unknown")
+                #"ip_address": activity.get("ip_address", "Unknown")
             })
         
         return jsonify({
             "activities": activity_list,
             "total": total_activities,
             "page": page,
-            "pages": (total_activities + limit - 1) // limit
+            "pages": (total_activities + limit - 1) 
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
