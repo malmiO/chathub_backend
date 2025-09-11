@@ -956,28 +956,28 @@ def log_activity(admin_id, action, details):
     })
     
 
-@admin_bp.route("/activity-log", methods=["GET"])
-@admin_required
-def get_activity_log():
-    try:
-        token = request.headers.get('Authorization').replace('Bearer ', '')
-        decoded_data = jwt.decode(token, ADMIN_SECRET_KEY, algorithms=[ALGORITHM])
-        admin = admin_collection.find_one({"email": decoded_data["email"]})
+#@admin_bp.route("/activity-log", methods=["GET"])
+#@admin_required
+#def get_activity_log():
+#    try:
+#        token = request.headers.get('Authorization').replace('Bearer ', '')
+#        decoded_data = jwt.decode(token, ADMIN_SECRET_KEY, algorithms=[ALGORITHM])
+#        admin = admin_collection.find_one({"email": decoded_data["email"]})
         
-        activities = list(activity_log_collection.find({"admin_id": str(admin["_id"])})
-                         .sort("timestamp", -1).limit(10))
-        activity_list = [
-            {
-                "action": activity["action"],
-                "details": activity["details"],
-                "timestamp": activity["timestamp"].isoformat() if isinstance(activity["timestamp"], datetime) else activity["timestamp"]
-            }
-            for activity in activities
-        ]
-        
-        return jsonify({"activities": activity_list})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+#        activities = list(activity_log_collection.find({"admin_id": str(admin["_id"])})
+#                        .sort("timestamp", -1).limit(10))
+#        activity_list = [
+#            {
+#                "action": activity["action"],
+#                "details": activity["details"],
+#                "timestamp": activity["timestamp"].isoformat() if isinstance(activity["timestamp"], datetime) else activity["timestamp"]
+#            }
+#            for activity in activities
+#        ]
+#        
+#        return jsonify({"activities": activity_list})
+#    except Exception as e:
+#        return jsonify({"error": str(e)}), 500
     
     
 def log_admin_activity(admin_email, action, details):

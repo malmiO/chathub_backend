@@ -76,20 +76,20 @@ ALGORITHM = "HS256"
 
 
 # Created a default admin account
-def create_default_admin():
-    default_admin = {
-        "email": "admin@chathub.com",
-        "password": "admin123",
-        "name": "System Administrator",
-        "created_at": datetime.now(timezone.utc)
-    }
+#def create_default_admin():
+#    default_admin = {
+#        "email": "admin@chathub.com",
+#        "password": "admin123",
+#        "name": "System Administrator",
+#        "created_at": datetime.now(timezone.utc)
+#    }
     
-    if not admin_collection.find_one({"email": default_admin["email"]}):
-        admin_collection.insert_one(default_admin)
-        print("Default admin account created")
+#    if not admin_collection.find_one({"email": default_admin["email"]}):
+#        admin_collection.insert_one(default_admin)
+#        print("Default admin account created")
 
 # Call this function when the app starts
-create_default_admin()
+#create_default_admin()
 
 # Serve admin profile pictures
 @app.route('/uploads/admin_profiles/<filename>')
