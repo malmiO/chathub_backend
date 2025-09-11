@@ -596,8 +596,6 @@ def get_admin_profile():
 def add_admin():
     try:
         data = request.json
-        print(f"Received data: {data}")  # Add logging
-        
         name = data.get("name")
         email = data.get("email")
         password = data.get("password")
@@ -618,12 +616,10 @@ def add_admin():
             "created_at": datetime.now(timezone.utc)
         }
         
-        result = admin_collection.insert_one(admin_data)
-        print(f"Inserted admin with ID: {result.inserted_id}")  # Add logging
+        admin_collection.insert_one(admin_data)
         
         return jsonify({"message": "Admin created successfully"})
     except Exception as e:
-        print(f"Error in add_admin: {str(e)}")  # Add detailed error logging
         return jsonify({"error": str(e)}), 500
 
 # Delete user
