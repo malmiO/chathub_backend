@@ -596,6 +596,8 @@ def get_admin_profile():
 def add_admin():
     try:
         data = request.json
+        print(f"Received data: {data}")  # Add logging
+        
         name = data.get("name")
         email = data.get("email")
         password = data.get("password")
@@ -616,10 +618,12 @@ def add_admin():
             "created_at": datetime.now(timezone.utc)
         }
         
-        admin_collection.insert_one(admin_data)
+        result = admin_collection.insert_one(admin_data)
+        print(f"Inserted admin with ID: {result.inserted_id}")  # Add logging
         
         return jsonify({"message": "Admin created successfully"})
     except Exception as e:
+        print(f"Error in add_admin: {str(e)}")  # Add detailed error logging
         return jsonify({"error": str(e)}), 500
 
 # Delete user
@@ -1292,52 +1296,6 @@ def change_admin_password():
         log_admin_activity(email, "Password changed", "Changed account password")
         
         return jsonify({"message": "Password changed successfully"})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-# Add new admin with permissions
-@admin_bp.route("/admins/add", methods=["POST"])
-@admin_required
-def add_admin_with_permissions():
-    try:
-        data = request.json
-        name = data.get("name")
-        email = data.get("email")
-        password = data.get("password")
-        role = data.get("role", "support")
-        permissions = data.get("permissions", [])
-        phone = data.get("phone", "")
-        
-        if not all([name, email, password]):
-            return jsonify({"error": "Name, email and password are required"}), 400
-        
-        # Check if admin already exists
-        existing_admin = admin_collection.find_one({"email": email})
-        if existing_admin:
-            return jsonify({"error": "Admin with this email already exists"}), 400
-        
-        # Create new admin
-        admin_data = {
-            "name": name,
-            "email": email,
-            "password": password,
-            "role": role,
-            "permissions": permissions,
-            "phone": phone,
-            "created_at": datetime.now(timezone.utc),
-            "status": "active",
-            "two_factor_enabled": False
-        }
-        
-        admin_collection.insert_one(admin_data)
-        
-        # Log activity
-        token = request.headers.get('Authorization').replace('Bearer ', '')
-        decoded_data = jwt.decode(token, ADMIN_SECRET_KEY, algorithms=[ALGORITHM])
-        admin_email = decoded_data["email"]
-        log_admin_activity(admin_email, "Admin added", f"Added new admin: {email} with role: {role}")
-        
-        return jsonify({"message": "Admin created successfully"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
